@@ -1,0 +1,52 @@
+name: School Safe Connect - Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-lint-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: school-safe-connect/backend/package-lock.json
+
+      - name: Install Backend Dependencies
+        working-directory: ./school-safe-connect/backend
+        run: npm ci
+
+      - name: Run Backend Tests with Coverage
+        working-directory: ./school-safe-connect/backend
+        env:
+          NODE_ENV: test
+          MONGODB_URI: mongodb://127.0.0.1:27017/ssc_ci_test
+          REDIS_URL: redis://127.0.0.1:6379
+          JWT_ACCESS_SECRET: ci_secret_key_access_minimum_64_characters_super_secure_for_testing_12345
+          JWT_REFRESH_SECRET: ci_secret_key_refresh_minimum_64_characters_super_secure_for_testing_12345
+          JWT_2FA_TEMP_SECRET: ci_secret_key_2fa_minimum_64_characters_super_secure_for_testing_12345
+          CCTV_STREAM_TOKEN_SECRET: ci_secret_key_cctv_minimum_64_characters_super_secure_for_testing_12345
+        run: npm test
+
+      - name: Build Docker Container
+        run: |
+          docker build -t ssc-backend:ci ./school-safe-connect/backend

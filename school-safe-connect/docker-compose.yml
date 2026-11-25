@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: ssc_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: school_safe_connect
+    volumes:
+      - ssc_mongo_data:/data/db
+    networks:
+      - ssc_network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: ssc_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ssc_redis_data:/data
+    networks:
+      - ssc_network
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: ssc_mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554" # RTSP
+      - "8888:8888" # HLS
+      - "8889:8889" # WebRTC
+    environment:
+      MTX_PROTOCOLS: tcp
+      MTX_HLSALWAYSREMUX: "yes"
+    networks:
+      - ssc_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ssc_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      MONGODB_URI: mongodb://mongodb:27017/school_safe_connect
+      REDIS_URL: redis://redis:6379
+      MEDIAMTX_API_URL: http://mediamtx:8554
+      MEDIAMTX_HLS_BASE_URL: http://localhost:8888
+    depends_on:
+      - mongodb
+      - redis
+      - mediamtx
+    networks:
+      - ssc_network
+
+networks:
+  ssc_network:
+    driver: bridge
+
+volumes:
+  ssc_mongo_data:
+  ssc_redis_data:
